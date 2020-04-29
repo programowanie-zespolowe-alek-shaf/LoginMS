@@ -1,10 +1,8 @@
 package pl.agh.login.application.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -14,24 +12,20 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
-import org.springframework.session.MapSessionRepository;
-import org.springframework.session.SessionRepository;
+import org.springframework.session.data.redis.config.annotation.web.http.EnableRedisHttpSession;
 import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.session.web.http.DefaultCookieSerializer;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import javax.sql.DataSource;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Configuration
 @EnableWebSecurity
-@EnableAspectJAutoProxy(proxyTargetClass = true)
+@EnableRedisHttpSession
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     private final DataSource dataSource;
-    @Value("${server.servlet.session.timeout}")
-    private Integer maxInactiveIntervalInSeconds;
 
     @Autowired
     public SecurityConfig(DataSource dataSource) {
@@ -61,18 +55,10 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     @Bean
     public CookieSerializer cookieSerializer() {
         DefaultCookieSerializer serializer = new DefaultCookieSerializer();
-        serializer.setCookieName("JSESSIONID");
+        serializer.setCookieName("SESSION");
         serializer.setCookiePath("/");
         serializer.setDomainNamePattern("^.+?\\.(\\w+\\.[a-z]+)$");
         return serializer;
-    }
-
-    @Bean
-    public SessionRepository sessionRepository() {
-        SessionRepository sessionRepository = new MapSessionRepository(new ConcurrentHashMap<>());
-        ((MapSessionRepository) sessionRepository)
-                .setDefaultMaxInactiveInterval(maxInactiveIntervalInSeconds);
-        return sessionRepository;
     }
 
     @Override
