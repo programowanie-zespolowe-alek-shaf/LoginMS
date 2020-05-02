@@ -5,6 +5,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.security.Principal;
+
 @RestController
 @RequestMapping(value = TestController.PREFIX)
 public class TestController {
@@ -17,7 +19,7 @@ public class TestController {
     }
 
     @RequestMapping(method = RequestMethod.GET)
-    public ResponseEntity<Integer> getUser() {
-        return ResponseEntity.ok(2);
+    public ResponseEntity<String> getUser(Principal principal) {
+        return ResponseEntity.ok("Logged: " + principal.getName());
     }
 }

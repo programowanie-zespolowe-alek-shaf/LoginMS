@@ -1,95 +1,47 @@
 package pl.agh.login.application.config;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
-import org.springframework.session.MapSessionRepository;
-import org.springframework.session.SessionRepository;
-import org.springframework.session.web.http.CookieSerializer;
-import org.springframework.session.web.http.DefaultCookieSerializer;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import javax.sql.DataSource;
-import java.util.concurrent.ConcurrentHashMap;
+import javax.servlet.http.HttpServletResponse;
 
 @Configuration
 @EnableWebSecurity
-@EnableAspectJAutoProxy(proxyTargetClass = true)
+@RequiredArgsConstructor
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
-    private final DataSource dataSource;
-    @Value("${server.servlet.session.timeout}")
-    private Integer maxInactiveIntervalInSeconds;
+    private final UserDetailsService userDetailsService;
+    private final JwtConfig jwtConfig;
+    private final PasswordEncoder encoder;
 
-    @Autowired
-    public SecurityConfig(DataSource dataSource) {
-        this.dataSource = dataSource;
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http
+                .csrf().disable()
+                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                .and()
+                .exceptionHandling().authenticationEntryPoint((req, rsp, e) -> rsp.sendError(HttpServletResponse.SC_UNAUTHORIZED))
+                .and()
+                .addFilter(new JwtUsernameAndPasswordAuthenticationFilter(authenticationManager(), jwtConfig))
+                .addFilterAfter(new JwtTokenAuthenticationFilter(jwtConfig), UsernamePasswordAuthenticationFilter.class)
+                .authorizeRequests()
+                .antMatchers(HttpMethod.POST, jwtConfig.getUri()).permitAll()
+                .anyRequest().authenticated();
     }
 
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.jdbcAuthentication()
-                .dataSource(dataSource)
-                .usersByUsernameQuery("select username, password, enabled from customer.user where username = ?")
-                .authoritiesByUsernameQuery("select username, role from customer.user_roles where username = ?");
-    }
-
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        http.cors().and().csrf().csrfTokenRepository(new HttpSessionCsrfTokenRepository())
-                .and().authorizeRequests().anyRequest().authenticated().and().httpBasic()
-                .and().logout().logoutUrl("/logout"); //POST method
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    public CookieSerializer cookieSerializer() {
-        DefaultCookieSerializer serializer = new DefaultCookieSerializer();
-        serializer.setCookieName("JSESSIONID");
-        serializer.setCookiePath("/");
-        serializer.setDomainNamePattern("^.+?\\.(\\w+\\.[a-z]+)$");
-        return serializer;
-    }
-
-    @Bean
-    public SessionRepository sessionRepository() {
-        SessionRepository sessionRepository = new MapSessionRepository(new ConcurrentHashMap<>());
-        ((MapSessionRepository) sessionRepository)
-                .setDefaultMaxInactiveInterval(maxInactiveIntervalInSeconds);
-        return sessionRepository;
-    }
-
-    @Override
-    public void configure(WebSecurity web) {
-        web.ignoring().antMatchers(HttpMethod.OPTIONS, "/**"); //disabled for CORS
-    }
-
-    @Bean
-    public WebMvcConfigurer corsConfigurer() {
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/**")
-                        .exposedHeaders("X-CSRF-Token", "Content-Type")
-                        .allowedMethods("HEAD", "GET", "PUT", "POST", "DELETE", "PATCH")
-                        .allowedOrigins("*");
-            }
-        };
+        auth
+                .userDetailsService(userDetailsService)
+                .passwordEncoder(encoder);
     }
 }
