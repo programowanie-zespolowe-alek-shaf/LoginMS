@@ -49,7 +49,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http.cors().and().csrf().csrfTokenRepository(new HttpSessionCsrfTokenRepository())
-                .and().authorizeRequests().antMatchers("/actuator/**").hasRole("ROLE_ADMIN")
+                .and().authorizeRequests().antMatchers("/actuator/**").hasRole("ADMIN")
                 .anyRequest().authenticated().and().httpBasic()
                 .and().logout().logoutUrl("/logout"); //POST method
     }
